@@ -20,20 +20,20 @@ contract BrickFarming is Ownable, ReentrancyGuard, Pausable {
     }
 
     struct PoolInfo {
-        IERC20 lpToken;
+        IERC20 stakedToken;
         uint256 allocPoint;
         uint256 accTokenPerShare;
         uint256 lockupDuration;
         uint256 totalAmount;
     }
 
-    IERC20 public token;
+    IERC20 public rewardToken;
 
     PoolInfo[] public poolInfo;
     mapping(uint256 => mapping(address => UserInfo)) public userInfo;
     uint256 public totalAllocPoint;
 
-    mapping(address => bool) private isLPPoolAdded;
+    mapping(address => bool) private isPoolAdded;
 
     // 5% fee when users withdraw within 3 days
     uint256 public emergencyWithdrawFee = 500;
@@ -46,19 +46,37 @@ contract BrickFarming is Ownable, ReentrancyGuard, Pausable {
     event Deposit(address indexed user, uint256 indexed pid, uint256 amount);
     event Withdraw(address indexed user, uint256 indexed pid, uint256 amount);
     event Claim(address indexed user, uint256 indexed pid, uint256 amount);
+    event PoolAdded(
+        uint256 indexed index,
+        address indexed stakedToken,
+        uint256 allocPoint,
+        uint256 lockupDuration
+    );
+    event PoolUpdated(uint256 indexed index, uint256 allocPoint);
+    event TreasuryUpdated(address indexed treasury);
+    event EmergencyWithdrawFeeUpdated(uint256 emergencyWithdrawFee);
     event Pause();
     event Unpause();
 
-    constructor(IERC20 _token, address _treasury) {
-        require(address(_token) != address(0), "Invalid token address!");
-        require(address(_treasury) != address(0), "Invalid treasury address!");
+    constructor(IERC20 _rewardToken, address _treasury) {
+        require(
+            address(_rewardToken) != address(0),
+            "BrickFarm: Invalid rewardToken address"
+        );
+        require(
+            address(_treasury) != address(0),
+            "BrickFarm: Invalid treasury address"
+        );
 
-        token = _token;
+        rewardToken = _rewardToken;
         treasury = _treasury;
+
+        emit TreasuryUpdated(_treasury);
+        emit EmergencyWithdrawFeeUpdated(emergencyWithdrawFee);
     }
 
     modifier validatePoolByPid(uint256 _pid) {
-        require(_pid < poolInfo.length, "Pool does not exist");
+        require(_pid < poolInfo.length, "BrickFarm: Pool does not exist");
         _;
     }
 
@@ -66,13 +84,13 @@ contract BrickFarming is Ownable, ReentrancyGuard, Pausable {
         return poolInfo.length;
     }
 
-    function pendingToken(uint256 _pid, address _user)
-        external
+    function pendingReward(uint256 _pid, address _user)
+        public
         view
         validatePoolByPid(_pid)
         returns (uint256)
     {
-        require(_user != address(0), "Invalid address!");
+        require(_user != address(0), "BrickFarm: Invalid address");
 
         PoolInfo storage pool = poolInfo[_pid];
         UserInfo storage user = userInfo[_pid][_user];
@@ -95,26 +113,15 @@ contract BrickFarming is Ownable, ReentrancyGuard, Pausable {
         PoolInfo storage pool = poolInfo[_pid];
         UserInfo storage user = userInfo[_pid][msg.sender];
 
-        if (user.amount > 0) {
-            uint256 pending = user
-                .amount
-                .mul(pool.accTokenPerShare)
-                .div(SHARE_MULTIPLIER)
-                .sub(user.rewardDebt);
-
-            if (pending > 0) {
-                uint256 pendingRewards = user.pendingRewards.add(pending);
-                uint256 sentRewards = safeTokenTransfer(
-                    msg.sender,
-                    pendingRewards
-                );
-                emit Claim(msg.sender, _pid, sentRewards);
-                user.pendingRewards = pendingRewards.sub(sentRewards);
-            }
+        uint256 pendingRewards = pendingReward(_pid, msg.sender);
+        if (pendingRewards > 0) {
+            uint256 sentRewards = safeTokenTransfer(msg.sender, pendingRewards);
+            emit Claim(msg.sender, _pid, sentRewards);
+            user.pendingRewards = pendingRewards.sub(sentRewards);
         }
 
         if (_amount > 0) {
-            pool.lpToken.safeTransferFrom(
+            pool.stakedToken.safeTransferFrom(
                 address(msg.sender),
                 address(this),
                 _amount
@@ -141,42 +148,31 @@ contract BrickFarming is Ownable, ReentrancyGuard, Pausable {
         PoolInfo storage pool = poolInfo[_pid];
         UserInfo storage user = userInfo[_pid][msg.sender];
 
-        require(user.amount >= _amount, "withdraw: not good");
+        require(user.amount >= _amount, "BrickFarm: Invalid withdraw amount");
 
         uint256 feeAmount;
         if (block.timestamp < user.lastClaim.add(pool.lockupDuration)) {
             feeAmount = _amount.mul(emergencyWithdrawFee).div(FEE_MULTIPLIER);
         }
 
-        if (user.amount > 0) {
-            uint256 pending = user
-                .amount
-                .mul(pool.accTokenPerShare)
-                .div(SHARE_MULTIPLIER)
-                .sub(user.rewardDebt);
-
-            if (pending > 0) {
-                uint256 pendingRewards = user.pendingRewards.add(pending);
-                uint256 sentRewards = safeTokenTransfer(
-                    msg.sender,
-                    pendingRewards
-                );
-                emit Claim(msg.sender, _pid, sentRewards);
-                user.pendingRewards = pendingRewards.sub(sentRewards);
-            }
+        uint256 pendingRewards = pendingReward(_pid, msg.sender);
+        if (pendingRewards > 0) {
+            uint256 sentRewards = safeTokenTransfer(msg.sender, pendingRewards);
+            emit Claim(msg.sender, _pid, sentRewards);
+            user.pendingRewards = pendingRewards.sub(sentRewards);
         }
 
         if (_amount > 0) {
             user.amount = user.amount.sub(_amount);
             user.lastClaim = block.timestamp;
 
-            pool.lpToken.safeTransfer(
+            pool.stakedToken.safeTransfer(
                 address(msg.sender),
                 _amount.sub(feeAmount)
             );
 
             if (feeAmount > 0) {
-                pool.lpToken.safeTransfer(treasury, feeAmount);
+                pool.stakedToken.safeTransfer(treasury, feeAmount);
             }
         }
 
@@ -192,18 +188,20 @@ contract BrickFarming is Ownable, ReentrancyGuard, Pausable {
         internal
         returns (uint256)
     {
-        uint256 tokenBal = token.balanceOf(address(this));
-        if (_amount > tokenBal) {
-            token.safeTransfer(_to, tokenBal);
-            return tokenBal;
+        uint256 rewardTokenBal = rewardToken.balanceOf(address(this));
+        if (_amount > rewardTokenBal) {
+            rewardToken.safeTransfer(_to, rewardTokenBal);
+            return rewardTokenBal;
         } else {
-            token.safeTransfer(_to, _amount);
+            rewardToken.safeTransfer(_to, _amount);
             return _amount;
         }
     }
 
-    function depositReward(uint256 _amount) external onlyOwner {
-        token.safeTransferFrom(msg.sender, address(this), _amount);
+    function depositReward(uint256 _amount) external {
+        require(_amount > 0, "BrickFarm: Invalid amount");
+
+        rewardToken.safeTransferFrom(msg.sender, address(this), _amount);
 
         uint256 length = poolInfo.length;
         for (uint256 pid = 0; pid < length; ++pid) {
@@ -219,19 +217,19 @@ contract BrickFarming is Ownable, ReentrancyGuard, Pausable {
 
     function add(
         uint256 _allocPoint,
-        IERC20 _lpToken,
+        IERC20 _stakedToken,
         uint256 _lockupDuration
     ) external onlyOwner {
         require(
-            !isLPPoolAdded[address(_lpToken)],
-            "There's already a pool with that LP token!"
+            !isPoolAdded[address(_stakedToken)],
+            "BrickFarm: There's already a pool with that token!"
         );
-        require(_lockupDuration > 0, "Invalid lockupDuration");
+        require(_lockupDuration > 0, "BrickFarm: Invalid lockupDuration");
 
         totalAllocPoint = totalAllocPoint.add(_allocPoint);
         poolInfo.push(
             PoolInfo({
-                lpToken: _lpToken,
+                stakedToken: _stakedToken,
                 allocPoint: _allocPoint,
                 accTokenPerShare: 0,
                 lockupDuration: _lockupDuration,
@@ -239,7 +237,14 @@ contract BrickFarming is Ownable, ReentrancyGuard, Pausable {
             })
         );
 
-        isLPPoolAdded[address(_lpToken)] = true;
+        isPoolAdded[address(_stakedToken)] = true;
+
+        emit PoolAdded(
+            poolInfo.length - 1,
+            address(_stakedToken),
+            _allocPoint,
+            _lockupDuration
+        );
     }
 
     function set(uint256 _pid, uint256 _allocPoint)
@@ -251,22 +256,33 @@ contract BrickFarming is Ownable, ReentrancyGuard, Pausable {
             poolInfo[_pid].allocPoint
         );
         poolInfo[_pid].allocPoint = _allocPoint;
+
+        emit PoolUpdated(_pid, _allocPoint);
     }
 
     function setTreasury(address _treasury) external onlyOwner {
-        require(address(_treasury) != address(0), "Invalid treasury address!");
+        require(
+            address(_treasury) != address(0),
+            "BrickFarm: Invalid treasury address"
+        );
 
         treasury = _treasury;
+
+        TreasuryUpdated(_treasury);
     }
 
     function setEmergencyWithdrawFee(uint256 _emergencyWithdrawFee)
         external
         onlyOwner
     {
-        require(_emergencyWithdrawFee < 1000, "Fee can't be 100%");
-        require(_emergencyWithdrawFee > 0, "Fee can't be 0");
+        require(
+            _emergencyWithdrawFee <= 1000,
+            "BrickFarm: Fee's upper limit is 10%"
+        );
 
         emergencyWithdrawFee = _emergencyWithdrawFee;
+
+        emit EmergencyWithdrawFeeUpdated(_emergencyWithdrawFee);
     }
 
     function pause() external onlyOwner whenNotPaused {
