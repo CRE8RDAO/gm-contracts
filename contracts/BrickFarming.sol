@@ -224,7 +224,6 @@ contract BrickFarming is Ownable, ReentrancyGuard, Pausable {
             !isPoolAdded[address(_stakedToken)],
             "BrickFarm: There's already a pool with that token!"
         );
-        require(_lockupDuration > 0, "BrickFarm: Invalid lockupDuration");
 
         totalAllocPoint = totalAllocPoint.add(_allocPoint);
         poolInfo.push(
