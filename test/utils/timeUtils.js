@@ -1,6 +1,6 @@
 const { network } = require("hardhat");
 
-const advanceTime = async (time) =>
+const advanceTime = (time) =>
     new Promise((resolve, reject) => {
         network.provider
             .send("evm_increaseTime", [time])

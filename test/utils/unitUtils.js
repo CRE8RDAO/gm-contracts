@@ -12,12 +12,12 @@ const wei = (amount) => {
 };
 
 const gWei = (amount) => {
-    const weiString = BigNumber.from("1000000000").mul(amount);
+    const weiString = ethers.utils.parseUnits(amount.toString(), 9);
     return BigNumber.from(weiString);
 };
 
 const usdc = (amount) => {
-    const weiString = BigNumber.from("1000000").mul(amount);
+    const weiString = ethers.utils.parseUnits(amount.toString(), 6);
     return BigNumber.from(weiString);
 };
 
