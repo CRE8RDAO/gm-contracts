@@ -3,3 +3,4 @@ artifacts/
 cache/
 deployments/localhost
 .env
+.DS_Store
