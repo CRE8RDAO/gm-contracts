@@ -2,7 +2,7 @@ const { expect } = require("chai");
 const { ethers } = require("hardhat");
 const { BigNumber } = ethers;
 const { ether, gWei, wei } = require("./utils/unitUtils");
-const { ZERO } = require("./utils/constants");
+const { ZERO, MAX_UINT_256 } = require("./utils/constants");
 const { getLatestBlockTimestamp } = require("./utils/helpers");
 const { advanceTimeAndBlock } = require("./utils/timeUtils");
 
@@ -48,16 +48,16 @@ describe("BrickFarming", function () {
         await stakedToken.transfer(tester3.address, ether(50));
 
         // approve
-        await rewardToken.approve(farming.address, ether(10000));
+        await rewardToken.approve(farming.address, MAX_UINT_256);
         await stakedToken
             .connect(tester1)
-            .approve(farming.address, ether(10000));
+            .approve(farming.address, MAX_UINT_256);
         await stakedToken
             .connect(tester2)
-            .approve(farming.address, ether(10000));
+            .approve(farming.address, MAX_UINT_256);
         await stakedToken
             .connect(tester3)
-            .approve(farming.address, ether(10000));
+            .approve(farming.address, MAX_UINT_256);
     });
 
     describe("check initial config", function () {
@@ -192,6 +192,61 @@ describe("BrickFarming", function () {
         });
     });
 
+    describe("Do farming after deposit reward", function () {
+        it("Stake stakedToken on pool from tester3 after deposit reward", async function () {
+            await farming.connect(tester3).deposit(0, ether(10));
+        });
+
+        it("check farm & poolInfo", async function () {
+            expect(await rewardToken.balanceOf(farming.address)).to.equal(
+                gWei(20)
+            );
+
+            const pool = await farming.poolInfo(0);
+
+            expect(pool.accTokenPerShare).to.equal(1000);
+            expect(pool.totalAmount).to.equal(ether(30));
+        });
+
+        it("check tester3 info for pool", async function () {
+            const userInfo = await farming.userInfo(0, tester3.address);
+            const blockTimeStamp = await getLatestBlockTimestamp();
+
+            expect(userInfo.amount).to.equal(ether(10));
+            expect(userInfo.rewardDebt).to.equal(gWei(10));
+            expect(userInfo.pendingRewards).to.equal(ZERO);
+            expect(userInfo.lastClaim).to.equal(wei(blockTimeStamp));
+        });
+
+        it("withdraw from tester3", async function () {
+            const prevBalance = await stakedToken.balanceOf(tester3.address);
+            await farming.connect(tester3).withdraw(0, ether(10)); // 5% -0.5
+            const afterBalance = await stakedToken.balanceOf(tester3.address);
+            expect(afterBalance.sub(prevBalance)).to.equal(ether(9.5));
+        });
+
+        it("check pool after test3 withdraw", async function () {
+            const pool = await farming.poolInfo(0);
+
+            expect(pool.accTokenPerShare).to.equal(1000);
+            expect(pool.totalAmount).to.equal(ether(20));
+        });
+
+        it("check treasury after test1 withdraw", async function () {
+            expect(await stakedToken.balanceOf(treasury)).to.equal(ether(0.5));
+        });
+
+        it("check tester3 info", async function () {
+            const userInfo = await farming.userInfo(0, tester3.address);
+            const blockTimeStamp = await getLatestBlockTimestamp();
+
+            expect(userInfo.amount).to.equal(ZERO);
+            expect(userInfo.rewardDebt).to.equal(ZERO);
+            expect(userInfo.pendingRewards).to.equal(ZERO);
+            expect(userInfo.lastClaim).to.equal(wei(blockTimeStamp));
+        });
+    });
+
     describe("check claim", function () {
         it("claim rewards for tester1", async () => {
             await farming.connect(tester1).deposit(0, ZERO);
@@ -260,9 +315,7 @@ describe("BrickFarming", function () {
         });
 
         it("check treasury after test1 withdraw", async function () {
-            const pool = await farming.poolInfo(0);
-
-            expect(await stakedToken.balanceOf(treasury)).to.equal(ether(0.25));
+            expect(await stakedToken.balanceOf(treasury)).to.equal(ether(0.75));
         });
 
         it("check tester1 info", async function () {
@@ -298,7 +351,7 @@ describe("BrickFarming", function () {
         it("check treasury after test1 withdraw", async function () {
             const pool = await farming.poolInfo(0);
 
-            expect(await stakedToken.balanceOf(treasury)).to.equal(ether(0.25));
+            expect(await stakedToken.balanceOf(treasury)).to.equal(ether(0.75));
         });
 
         it("check tester1 info for pool0", async function () {
