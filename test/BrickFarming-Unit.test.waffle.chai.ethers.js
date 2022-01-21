@@ -216,6 +216,12 @@ describe("BrickFarming", function () {
             expect(userInfo.rewardDebt).to.equal(gWei(10));
             expect(userInfo.pendingRewards).to.equal(ZERO);
             expect(userInfo.lastClaim).to.equal(wei(blockTimeStamp));
+
+            const userRewardTokenBalance = await rewardToken.balanceOf(
+                tester3.address
+            );
+
+            expect(userRewardTokenBalance).to.equal(ZERO);
         });
 
         it("withdraw from tester3", async function () {
@@ -244,6 +250,12 @@ describe("BrickFarming", function () {
             expect(userInfo.rewardDebt).to.equal(ZERO);
             expect(userInfo.pendingRewards).to.equal(ZERO);
             expect(userInfo.lastClaim).to.equal(wei(blockTimeStamp));
+
+            const userRewardTokenBalance = await rewardToken.balanceOf(
+                tester3.address
+            );
+
+            expect(userRewardTokenBalance).to.equal(ZERO);
         });
     });
 
