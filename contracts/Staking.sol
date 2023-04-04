@@ -561,6 +561,9 @@ contract OlympusStaking is Ownable {
     address public warmupContract;
     uint public warmupPeriod;
 
+    event Stake(uint _amount, address _recipient);
+    event UnStake(uint _amount, bool _trigger);
+
     constructor (
         address _OHM,
         address _sOHM,
@@ -610,6 +613,8 @@ contract OlympusStaking is Ownable {
         });
         
         IERC20( sOHM ).safeTransfer( warmupContract, _amount );
+
+        emit Stake(_amount, _recipient);
         return true;
     }
 
@@ -654,6 +659,7 @@ contract OlympusStaking is Ownable {
         }
         IERC20( sOHM ).safeTransferFrom( msg.sender, address(this), _amount );
         IERC20( OHM ).safeTransfer( msg.sender, _amount );
+        emit UnStake(_amount, _trigger);
     }
 
     /**
