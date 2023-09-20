@@ -3,7 +3,7 @@ const { config, ethers, deployments: { get } } = require("hardhat");
 async function main() {
     const treasuryArtifact = await get('OlympusTreasury');
     const stakingHelperArtifact = await get('StakingHelper');
-    const daiBondDepositoryArtifact = await get('DaiBondDepository');
+    const daiBondDepositoryArtifact = await get('DaiBondDepositoryV2');
 
     const treasury = (
       await ethers.getContractFactory('OlympusTreasury')
@@ -17,7 +17,7 @@ async function main() {
     }
 
     const daiBond = (
-      await ethers.getContractFactory('contracts/BondDepository.sol:OlympusBondDepository')
+      await ethers.getContractFactory('contracts/DaiBondDepositoryV2.sol:DaiBondDepository')
     ).attach(daiBondDepositoryArtifact.address);
 
     // NOTE: Use staking helper.
@@ -29,11 +29,11 @@ async function main() {
     // TODO: Just copying params from
     // https://etherscan.io/tx/0xc83d9c015dcc177284a919d7ac5a53e3bf8788ff9e940b294b58150c53674e17 (Dai V1 bonds initializeBondTerms)
     // for now. Need to adjust at least bondVestingLength, minBondPrice, maxBondPayout.
-    const daiBondBCV = 300;
+    const daiBondBCV = 1000;
 
     // 5 days
     const bondVestingLength = 432000;
-    const minDaiBondPrice = 29000; 
+    const minDaiBondPrice = 1000;
     // 0.05% of BRICK supply
     const maxDaiBondPayout = 50
 
