@@ -1,5 +1,5 @@
 const { config, getChainId } = require("hardhat");
-const getTokenAddress = require("../utils/getTokenAddress");
+const getTokenAddress = require("../../utils/getTokenAddress");
 
 module.exports = async ({ getNamedAccounts, deployments }) => {
   const { deploy, get } = deployments;

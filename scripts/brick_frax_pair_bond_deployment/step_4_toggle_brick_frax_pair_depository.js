@@ -3,9 +3,9 @@ const { config, ethers, deployments: { get }, getChainId } = require("hardhat");
 async function main() {
     const chainId = await getChainId();
     // restrict this to testnets for now
-    if (['4', '4002'].indexOf(chainId) === -1) {
-        throw new Error('This can only be done on testnets!');
-    }
+    // if (['4', '4002'].indexOf(chainId) === -1) {
+    //     throw new Error('This can only be done on testnets!');
+    // }
 
     const zeroAddress = config.contractAddresses.zero;
 

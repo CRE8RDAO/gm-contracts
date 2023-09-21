@@ -11,6 +11,10 @@ const {
   MAINNET_ALCHEMY_API,
 } = process.env;
 
+
+
+
+
 module.exports = {
   solidity: "0.7.5",
   namedAccounts: {
@@ -136,7 +140,7 @@ module.exports = {
       uniswapV2Factory: '0xFDa619b6d20975be80A10332cD39b9a4b0FAa8BB', // Velocimeter base pair factory but changed to baseswap for now
       wrappedToken: '0x4200000000000000000000000000000000000006', // WETH on base
       uniswapV2Router: '0x327Df1E6de05895d2ab08513aaDD9313Fe505d86', // Velocimeter base router but changed to baseswap for now
-      brickFraxUniswapV2Pair: '0x3ce5f3633a9a84792391d058da153a7af145dbec',
+      brickFraxUniswapV2Pair: '0x7b809866eaa8137d902f83bf7cbe77b41d0df70c', // pair contract
     },
     '4002': {
       dao: '0xA38F4E6718EdCF023a1d032a2193848CB932c8e3', // testnet deployer address

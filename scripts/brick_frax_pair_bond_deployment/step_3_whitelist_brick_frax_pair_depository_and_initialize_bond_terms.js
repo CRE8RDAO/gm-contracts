@@ -3,13 +3,15 @@ const { config, ethers, deployments: { get }, getChainId } = require("hardhat");
 async function main() {
     const chainId = await getChainId();
     // restrict this to testnets for now
-    if (['4', '4002'].indexOf(chainId) === -1) {
-        throw new Error('This can only be done on testnets!');
-    }
+    // if (['4', '4002'].indexOf(chainId) === -1) {
+    //     throw new Error('This can only be done on testnets!');
+    // }
 
     const treasuryArtifact = await get('OlympusTreasury');
     const stakingHelperArtifact = await get('StakingHelper');
     const bondDepositoryArtifact = await get('BrickFraxBondDepository');
+
+  //const bondDepositoryArtifact = "0x0bEc648cCDE8a30a2650F622E8dE3A4e94D456Dc";
 
     const treasury = (
       await ethers.getContractFactory('OlympusTreasury')
@@ -46,7 +48,7 @@ async function main() {
 
     // 5 days
     const bondVestingLength = 432000;
-    const minBondPrice = 1600;
+    const minBondPrice = 1000;
     // 0.05% of BRICK supply
     const maxBondPayout = 50;
 
